@@ -19,7 +19,7 @@
 using namespace std;
 
 //-- Global Defínitions --//
-const GLint WIDTH = 800, HEIGHT = 600;
+const GLint WIDTH = 1000, HEIGHT = 600;
 glm::vec3 cameraPos = glm::vec3(0.0f, 5.0f, 3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -30,6 +30,7 @@ glm::vec3 freecameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 freecameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
 glm::vec3 playerPos = glm::vec3(5.0f, 0.0f, 0.0f);
+glm::vec3 destPos = glm::vec3(5.0f, 0.0f, 0.0f);
 
 //-- Object Hovering --//
 GLfloat objectYpos = 0.0f;
@@ -39,6 +40,9 @@ GLfloat objectYpos = 0.0f;
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode);
 //-- The main mouse callback method for GLFW mouse activity controls --//
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+
+//-- Distance returning function between two glm::vec3 points --//
+double distanceCalc(glm::vec3 pointOne, glm::vec3 pointTwo);
 
 // Deltatime
 GLfloat deltaTime = 0.0f;	// Time between current frame and last frame
@@ -71,11 +75,9 @@ sf::Clock playerAnimationClock;
 
 sf::Clock freeFormClock;
 
-//-- Light Positions Vector --//
-vector<glm::vec3> lightPosVect
-{ 
-	glm::vec3(1.2f, 1.0f, 2.0f) 
-};
+
+//-- The player moves in 3.1 unit incremental steps on the X-Z plane --//
+//-- Thus any collisible and collectible objects must be within the player's path --//
 
 
 
@@ -147,7 +149,7 @@ int main()
 	Shader shaderTree("./Shaders/TreeVertex.vert", "./Shaders/TreeFragment.frag");
 	Shader shaderPlayer("./Shaders/PlayerVertex.vert", "./Shaders/PlayerFragment.frag");
 	Shader shaderShadow("./Shaders/ShadowVertex.vert", "./Shaders/ShadowFragment.frag");
-
+	Shader shaderLight("./Shaders/ShadowVertex.vert", "./Shaders/LightFragment.frag");
 	//-- Initialization of Variables --//
 
 	//-- Vertex and Buffer Data --//
@@ -324,6 +326,38 @@ int main()
 		glm::vec3(3.8f, 0.0f, -3.0f),
 	};
 
+	//-- Positions of Moving Lights --//
+
+	//-- Clockwise --//
+	vector<glm::vec3> CWlightPosVect =
+	{
+		glm::vec3(42.0f, 1.0f, 1.0f),
+		glm::vec3(-33.5f, 1.0f, 22.0f),
+		glm::vec3(-6.8f, 1.0f, -18.0f),
+		glm::vec3(13.0f, 1.0f, 17.0f),
+		glm::vec3(-16.5f, 1.0f, -18.0f),
+		glm::vec3(-33.5f, 1.0f, 22.0f),
+		glm::vec3(-6.8f, 1.0f, -18.0f),
+		glm::vec3(13.0f, 1.0f, 17.0f),
+		glm::vec3(-16.5f, 1.0f, -18.0f),
+		glm::vec3(-33.5f, 1.0f, 22.0f),
+		glm::vec3(-6.8f, 1.0f, -18.0f),
+		glm::vec3(13.0f, 1.0f, 17.0f),
+		glm::vec3(-16.5f, 1.0f, -18.0f),
+		glm::vec3(-42.8f, 1.0f, 32.0f)
+	};
+
+	//-- Counter Clockwise --//
+	vector<glm::vec3> CCWlightPosVect =
+	{
+		glm::vec3(1.0f, 1.0f, 1.0f),
+		glm::vec3(-1.5f, 1.0f, 4.0f),
+		glm::vec3(-3.8f, 1.0f, 3.0f),
+		glm::vec3(0.0f, 1.0f, 1.0f),
+		glm::vec3(-1.5f, 1.0f, 4.0f),
+		glm::vec3(-3.8f, 1.0f, 3.0f)
+	};
+
 	//-- Player VAO and VBO --//
 	GLuint PlayerVBO, PlayerVAO;
 	glGenVertexArrays(1, &PlayerVAO);
@@ -347,7 +381,7 @@ int main()
 	glEnableVertexAttribArray(2);
 
 	//-- Normal Vector Attribute of the Vertices --//
-	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(GLfloat), (GLvoid*)(9 * sizeof(GLfloat)));
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(GLfloat), (GLvoid*)(8 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(3);
 
 	glBindVertexArray(0);
@@ -410,6 +444,28 @@ int main()
 	glEnableVertexAttribArray(2);
 
 	glBindVertexArray(0);
+
+
+	//-- Light Cubes VAO and VBO --//
+	GLuint LightCubeVBO, LightCubeVAO;
+	glGenVertexArrays(1, &LightCubeVAO);
+	glGenBuffers(1, &LightCubeVBO);
+
+	glBindVertexArray(LightCubeVAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, LightCubeVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(LightCubeVertices), LightCubeVertices, GL_STATIC_DRAW);
+
+	//-- Position Attribute of the Vertices --//
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(0);
+
+	//-- Texture Co-Ordinate Attribute of the Vertices --//
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(2);
+
+	glBindVertexArray(0);
+	
 
 	// ====================
 	// Texture 1 (Metal Plates)
@@ -476,7 +532,7 @@ int main()
 
 
 	// ====================
-	// Texture 3 (DummyShadows)
+	// Texture 4 (DummyShadows)
 	// ====================
 	GLuint texture4;
 	glGenTextures(1, &texture4);
@@ -491,6 +547,26 @@ int main()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width4, height4, 0, GL_RGBA, GL_UNSIGNED_BYTE, image4);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	SOIL_free_image_data(image4);
+	glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture when done, so we won't accidentily mess up our texture.
+
+	// ====================
+	// Texture 5 (LightTexture)
+	// ====================
+	GLuint texture5;
+	glGenTextures(1, &texture5);
+	glBindTexture(GL_TEXTURE_2D, texture5); // All upcoming GL_TEXTURE_2D operations now have effect on our texture object
+	// Set our texture parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);	// Set texture wrapping to GL_REPEAT
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+	// Set texture filtering
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// Load, create texture and generate mipmaps
+	int width5, height5;
+	unsigned char* image5 = SOIL_load_image("./Light.png", &width5, &height5, 0, SOIL_LOAD_RGB);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width5, height5, 0, GL_RGB, GL_UNSIGNED_BYTE, image5);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	SOIL_free_image_data(image5);
 	glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture when done, so we won't accidentily mess up our texture.
 
 	//-- Audio Buffers --//
@@ -607,10 +683,38 @@ int main()
 		glm::mat4 Playerprojection;
 		Playerprojection = glm::perspective(45.0f, (GLfloat)WIDTH / (GLfloat)HEIGHT, 0.1f, 100.0f);
 		//-- Get the uniform locations --//
+		
+		GLint PlayerColorLoc = glGetUniformLocation(shaderPlayer.Program, "objectColor");
+		GLint lightColorLoc = glGetUniformLocation(shaderPlayer.Program, "lightColor");
+		GLint lightPosLoc = glGetUniformLocation(shaderPlayer.Program, "lightPos");
+		GLint lightDist = glGetUniformLocation(shaderPlayer.Program, "lightDist");
+		//-- Pass the matrices to the shader --//
+
+		
+		glUniform3f(PlayerColorLoc, 1.0f, 0.5f, 0.31f);
+		glUniform3f(lightColorLoc, 1.0f, 1.0f, 0.4f);
+
+
+		//-- Determine the closest light and then apply shading according to the closest one --//
+		float minDist = 10000000;
+		int vectorLightLoc = 0;
+		for (int i = 0; i < CWlightPosVect.size(); i++)
+		{
+			float distance = distanceCalc(CWlightPosVect[i], playerPos);
+			if (distance <= minDist)
+			{
+				minDist = distance;
+				vectorLightLoc = i;
+			}
+		}
+
+
+		glUniform3f(lightPosLoc, CWlightPosVect[vectorLightLoc].x, CWlightPosVect[vectorLightLoc].y, CWlightPosVect[vectorLightLoc].z);
+		glUniform1f(lightDist, distanceCalc(CWlightPosVect[vectorLightLoc], playerPos));
+
 		GLint PlayermodelLoc = glGetUniformLocation(shaderPlayer.Program, "model");
 		GLint PlayerviewLoc = glGetUniformLocation(shaderPlayer.Program, "view");
 		GLint PlayerprojLoc = glGetUniformLocation(shaderPlayer.Program, "projection");
-		//-- Pass the matrices to the shader --//
 		glUniformMatrix4fv(PlayerviewLoc, 1, GL_FALSE, glm::value_ptr(view));
 		glUniformMatrix4fv(PlayerprojLoc, 1, GL_FALSE, glm::value_ptr(Playerprojection));
 
@@ -673,6 +777,25 @@ int main()
 
 			playerAnimationClock.restart();
 		}
+
+
+		//-- DEBUGGING SECTION --//
+		//-- Testing Collision Basics --//
+		/*
+		for (int i = 0; i < treePosVect.size(); i++)
+		{
+			if (distanceCalc(treePosVect[i], playerPos) <= 0.5)
+			{
+				treePosVect.erase(treePosVect.begin() + i);
+			}
+		}
+		*/
+
+		//cout << playerPos.x << " " << playerPos.z << endl;
+		//cout << cameraPos.x << " " << cameraPos.z << endl;
+		//cout << endl;
+		//-- DEBUGGING SECTION --//
+
 
 
 		glBindVertexArray(0);
@@ -752,6 +875,48 @@ int main()
 
 		glBindVertexArray(0);
 
+
+		//-- Light rendering section --//
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture5);
+		glUniform1i(glGetUniformLocation(shaderLight.Program, "ourTexture1"), 0);
+
+		//-- Activating "ourShader" --//
+		shaderLight.Use();
+
+		//-- Light Projection --//
+		glm::mat4 Lightprojection;
+		Lightprojection = glm::perspective(45.0f, (GLfloat)WIDTH / (GLfloat)HEIGHT, 0.1f, 100.0f);
+		//-- Get the uniform locations --//
+		GLint LightmodelLoc = glGetUniformLocation(shaderLight.Program, "model");
+		GLint LightviewLoc = glGetUniformLocation(shaderLight.Program, "view");
+		GLint LightprojLoc = glGetUniformLocation(shaderLight.Program, "projection");
+		//-- Pass the matrices to the shader --//
+		glUniformMatrix4fv(LightviewLoc, 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(LightprojLoc, 1, GL_FALSE, glm::value_ptr(Lightprojection));
+
+		glBindVertexArray(LightCubeVAO);
+
+		objectYpos = sin(glfwGetTime());
+
+		for (int i = 0; i < CWlightPosVect.size(); i++)
+		{
+			//-- Calculation of each individual model matrix --//
+			glm::mat4 Lightmodel;
+			GLfloat radius = 0.25f;
+			GLfloat lightX = sin(glfwGetTime()) * radius;
+			GLfloat lightZ = cos(glfwGetTime()) * radius;
+			Lightmodel = glm::translate(Lightmodel, CWlightPosVect[i] + glm::vec3(lightX, 1.0f, lightZ));
+			Lightmodel = glm::rotate(Lightmodel, 1.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+			//-- The angle changes over time, acceleration is caused by the sinusoidal change over time altering position. --//
+			glUniformMatrix4fv(LightmodelLoc, 1, GL_FALSE, glm::value_ptr(Lightmodel));
+
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
+
+
+		glBindVertexArray(0);
 
 
 		//-- Swap the screen buffers --//
@@ -907,4 +1072,13 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 		front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
 		freecameraFront = glm::normalize(front);
 	}
+}
+
+double distanceCalc(glm::vec3 pointOne, glm::vec3 pointTwo)
+{
+	double Delta = 0.0;
+
+	Delta = sqrt(pow(pointOne.x - pointTwo.x, 2) + pow(pointOne.y - pointTwo.y, 2) + pow(pointOne.z - pointTwo.z, 2));
+
+	return Delta;
 }
