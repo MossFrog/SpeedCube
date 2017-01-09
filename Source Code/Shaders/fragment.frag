@@ -8,7 +8,7 @@ out vec4 color;
 uniform sampler2D ourTexture1;
 
 //-- We have an array of light positions --//
-uniform vec3 lightPosArr[5]; 
+uniform vec3 lightPosArr[10]; 
 
 
 uniform vec3 lightColor;
@@ -30,7 +30,7 @@ void main()
 	vec3 diffuse;
 	vec3 result;
 
-	for(int i = 0; i <= 4; i++)
+	for(int i = 0; i <= 9; i++)
 	{
 		// Diffuse 
 		norm = normalize(Normal);

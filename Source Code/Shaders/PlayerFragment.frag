@@ -18,6 +18,8 @@ void main()
 {
 	// Ambient
     float ambientStrength = 0.2f;
+
+	//-- No ambient color !! --//
     vec3 ambient = ambientStrength * vec3(0.0f,0.0f,0.0f);
 
     // Diffuse 

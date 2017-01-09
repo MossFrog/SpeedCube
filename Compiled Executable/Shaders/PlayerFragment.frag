@@ -18,7 +18,9 @@ void main()
 {
 	// Ambient
     float ambientStrength = 0.2f;
-    vec3 ambient = ambientStrength * lightColor;
+
+	//-- No ambient color !! --//
+    vec3 ambient = ambientStrength * vec3(0.0f,0.0f,0.0f);
 
     // Diffuse 
     vec3 norm = normalize(Normal);

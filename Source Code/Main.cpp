@@ -75,6 +75,10 @@ sf::Clock playerAnimationClock;
 
 sf::Clock freeFormClock;
 
+//-- Teleportation Animations --//
+sf::Clock flashAnimClock;
+float gammaIntensity = 5.0f;
+bool flashAnimEnabled = false;
 
 //-- The player moves in 3.1 unit incremental steps on the X-Z plane --//
 //-- Thus any collisible and collectible objects must be within the player's path --//
@@ -85,6 +89,7 @@ int main()
 	mainClock.restart();
 	playerAnimationClock.restart();
 	freeFormClock.restart();
+	flashAnimClock.restart();
 
 	//--------------------------------//
 
@@ -325,8 +330,6 @@ int main()
 	};
 
 	//-- Positions of Moving Lights --//
-
-	//-- Clockwise --//
 	vector<glm::vec3> CWlightPosVect =
 	{
 		glm::vec3(42.0f, 1.0f, 1.0f),
@@ -335,26 +338,19 @@ int main()
 		glm::vec3(13.0f, 1.0f, 17.0f),
 		glm::vec3(0.5f, 1.0f, 0.0f),
 		glm::vec3(-33.5f, 1.0f, 22.0f),
-		glm::vec3(-6.8f, 1.0f, -18.0f),
-		glm::vec3(13.0f, 1.0f, 17.0f),
+		glm::vec3(-45.8f, 1.0f, -35.0f),
+		glm::vec3(44.0f, 1.0f, 17.0f),
 		glm::vec3(-16.5f, 1.0f, -18.0f),
-		glm::vec3(-33.5f, 1.0f, 22.0f),
-		glm::vec3(-6.8f, 1.0f, -18.0f),
-		glm::vec3(13.0f, 1.0f, 17.0f),
-		glm::vec3(-16.5f, 1.0f, -18.0f),
-		glm::vec3(-42.8f, 1.0f, 32.0f)
+		glm::vec3(-42.5f, 1.0f, 22.0f)
 	};
 
-	//-- Counter Clockwise (Unused) --//
-	vector<glm::vec3> CCWlightPosVect =
+	//-- Dump contents to a statically alocatted array for shader passing --//
+	glm::vec3 lightPosArray[10];
+
+	for (int i = 0; i < 10; i++)
 	{
-		glm::vec3(1.0f, 1.0f, 1.0f),
-		glm::vec3(-1.5f, 1.0f, 4.0f),
-		glm::vec3(-3.8f, 1.0f, 3.0f),
-		glm::vec3(0.0f, 1.0f, 1.0f),
-		glm::vec3(-1.5f, 1.0f, 4.0f),
-		glm::vec3(-3.8f, 1.0f, 3.0f)
-	};
+		lightPosArray[i] = CWlightPosVect[i];
+	}
 
 	//-- Player VAO and VBO --//
 	GLuint PlayerVBO, PlayerVAO;
@@ -584,6 +580,17 @@ int main()
 	sf::Sound moveSound;
 	moveSound.setBuffer(moveSoundBuffer);
 
+
+	sf::SoundBuffer teleportSoundBuffer;
+	if (!teleportSoundBuffer.loadFromFile("Teleport.ogg"))
+	{
+		cout << "Failed to load 'Teleport.ogg'" << endl;
+	}
+
+
+	sf::Sound teleportSound;
+	teleportSound.setBuffer(teleportSoundBuffer);
+
 	//-- Loading the theme song to a buffer --//
 	sf::Music mainTheme;
 	if(!mainTheme.openFromFile("MainTheme.ogg"))
@@ -655,17 +662,8 @@ int main()
 		GLint planelightPosLoc = glGetUniformLocation(ourShader.Program, "lightPosArr");
 		//GLint planelightDist = glGetUniformLocation(ourShader.Program, "lightDist");
 
-		// Optimize here
-		const static int lightArrSize = CWlightPosVect.size();
-		glm::vec3 lightPosArray[5];
 
-		for (int i = 0; i < 5; i++)
-		{
-			lightPosArray[i] = CWlightPosVect[i];
-		}
-
-
-		glUniform3fv(planelightPosLoc, 5, glm::value_ptr(lightPosArray[0]));
+		glUniform3fv(planelightPosLoc, 10, glm::value_ptr(lightPosArray[0]));
 		//glUniform1f(planelightDist, distanceCalc(CWlightPosVect[0], playerPos));
 		glUniform3f(planelightColorLoc, 1.0f, 1.0f, 0.4f);
 
@@ -802,6 +800,57 @@ int main()
 			playerAnimationClock.restart();
 		}
 
+		//-- Handling player Teleportation --//
+		if (playerPos.x > 50.0f)
+		{
+			cameraPos.x = -54.0f;
+			flashAnimEnabled = true;
+			flashAnimClock.restart();
+			gammaIntensity = 5.0f;
+			teleportSound.play();
+		}
+
+		if (playerPos.x < -50.0f)
+		{
+			cameraPos.x = 46.0f;
+			flashAnimEnabled = true;
+			flashAnimClock.restart();
+			gammaIntensity = 5.0f;
+			teleportSound.play();
+		}
+
+		if (playerPos.z > 50.0f)
+		{
+			cameraPos.z = -49.0f;
+			flashAnimEnabled = true;
+			flashAnimClock.restart();
+			gammaIntensity = 5.0f;
+			teleportSound.play();
+		}
+
+		if (playerPos.z < -50.0f)
+		{
+			cameraPos.z = 49.0f;
+			flashAnimEnabled = true;
+			flashAnimClock.restart();
+			gammaIntensity = 5.0f;
+			teleportSound.play();
+		}
+
+		while (flashAnimEnabled)
+		{
+			if (flashAnimClock.getElapsedTime().asMilliseconds() >= 15)
+			{
+				gammaIntensity = gammaIntensity - 0.1f;
+				if (gammaIntensity <= 1.0f)
+				{
+					flashAnimEnabled = false;
+					gammaIntensity = 1.0f;
+				}
+				glfwSetGamma(glfwGetPrimaryMonitor(), gammaIntensity);
+				flashAnimClock.restart();
+			}
+		}
 
 		//-- DEBUGGING SECTION --//
 		//-- Testing Collision Basics --//
@@ -819,8 +868,6 @@ int main()
 		//cout << cameraPos.x << " " << cameraPos.z << endl;
 		//cout << endl;
 		//-- DEBUGGING SECTION --//
-
-
 
 		glBindVertexArray(0);
 
@@ -856,7 +903,12 @@ int main()
 			//-- The angle changes over time, acceleration is caused by the sinusoidal change over time altering rotation. --//
 			glUniformMatrix4fv(TreemodelLoc, 1, GL_FALSE, glm::value_ptr(Treemodel));
 
-			glDrawArrays(GL_TRIANGLES, 0, 36);
+			//-- Simple View Frustrum Culling --//
+			if (distanceCalc(playerPos, treePosVect[i]) <= 20.0f)
+			{
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
+			
 		}
 
 
@@ -894,7 +946,11 @@ int main()
 			//-- The angle changes over time, acceleration is caused by the sinusoidal change over time altering rotation. --//
 			glUniformMatrix4fv(ShadowModelLoc, 1, GL_FALSE, glm::value_ptr(ShadowModel));
 
-			glDrawArrays(GL_TRIANGLES, 0, 36);
+			//-- Simple View Frustrum Culling --//
+			if (distanceCalc(playerPos, treePosVect[i]) <= 20.0f)
+			{
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
 		}
 
 		glBindVertexArray(0);
@@ -936,12 +992,15 @@ int main()
 			//-- The angle changes over time, acceleration is caused by the sinusoidal change over time altering position. --//
 			glUniformMatrix4fv(LightmodelLoc, 1, GL_FALSE, glm::value_ptr(Lightmodel));
 
-			glDrawArrays(GL_TRIANGLES, 0, 36);
+			//-- Simple View Frustrum Culling --//
+			if (distanceCalc(playerPos, CWlightPosVect[i]) <= 20.0f)
+			{
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
 		}
 
 
 		glBindVertexArray(0);
-
 
 		//-- Swap the screen buffers --//
 		glfwSwapBuffers(mainWindow);
