@@ -79,8 +79,6 @@ sf::Clock freeFormClock;
 //-- The player moves in 3.1 unit incremental steps on the X-Z plane --//
 //-- Thus any collisible and collectible objects must be within the player's path --//
 
-
-
 int main()
 {
 	//-- Initial Definitions Section --//
@@ -102,7 +100,7 @@ int main()
 
 
 	//-- We allocate and create a pointer to the GLFW Window object --//
-	GLFWwindow * mainWindow = glfwCreateWindow(WIDTH, HEIGHT, "OpenGL Test", nullptr, nullptr);
+	GLFWwindow * mainWindow = glfwCreateWindow(WIDTH, HEIGHT, "Speed Cube", nullptr, nullptr);
 
 	int screenWidth, screenHeight;
 	glfwGetFramebufferSize(mainWindow, &screenWidth, &screenHeight);
@@ -158,12 +156,12 @@ int main()
 	//-- Cube Vertex Array Definition --//
 	GLfloat PlaneVertices[] = {
 
-		-50.0f, -0.5f, -50.0f, 0.0f, 0.0f,
-		50.0f, -0.5f, -50.0f, 50.0f, 0.0f,
-		50.0f, -0.5f, 50.0f, 50.0f, 50.0f,
-		50.0f, -0.5f, 50.0f, 50.0f, 50.0f,
-		-50.0f, -0.5f, 50.0f, 0.0f, 50.0f,
-		-50.0f, -0.5f, -50.0f, 0.0f, 0.0f
+		-50.0f, -0.5f, -50.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+		50.0f, -0.5f, -50.0f, 50.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+		50.0f, -0.5f, 50.0f, 50.0f, 50.0f, 0.0f, 1.0f, 0.0f,
+		50.0f, -0.5f, 50.0f, 50.0f, 50.0f, 0.0f, 1.0f, 0.0f,
+		-50.0f, -0.5f, 50.0f, 0.0f, 50.0f, 0.0f, 1.0f, 0.0f,
+		-50.0f, -0.5f, -50.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f
 	};
 
 	GLfloat DumbPlaneVertices[] = {
@@ -323,7 +321,7 @@ int main()
 
 		glm::vec3(1.0f, 0.0f, -2.0f),
 		glm::vec3(1.5f, 0.0f, -6.0f),
-		glm::vec3(3.8f, 0.0f, -3.0f),
+		glm::vec3(3.8f, 0.0f, -3.0f)
 	};
 
 	//-- Positions of Moving Lights --//
@@ -335,7 +333,7 @@ int main()
 		glm::vec3(-33.5f, 1.0f, 22.0f),
 		glm::vec3(-6.8f, 1.0f, -18.0f),
 		glm::vec3(13.0f, 1.0f, 17.0f),
-		glm::vec3(-16.5f, 1.0f, -18.0f),
+		glm::vec3(0.5f, 1.0f, 0.0f),
 		glm::vec3(-33.5f, 1.0f, 22.0f),
 		glm::vec3(-6.8f, 1.0f, -18.0f),
 		glm::vec3(13.0f, 1.0f, 17.0f),
@@ -347,7 +345,7 @@ int main()
 		glm::vec3(-42.8f, 1.0f, 32.0f)
 	};
 
-	//-- Counter Clockwise --//
+	//-- Counter Clockwise (Unused) --//
 	vector<glm::vec3> CCWlightPosVect =
 	{
 		glm::vec3(1.0f, 1.0f, 1.0f),
@@ -406,6 +404,7 @@ int main()
 
 	glBindVertexArray(0);
 
+	//-- Plane VAO and VBO --//
 	GLuint VBO, VAO;
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
@@ -416,11 +415,15 @@ int main()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(PlaneVertices), PlaneVertices, GL_STATIC_DRAW);
 
 	//-- Position Attribute of the Vertices --//
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)0);
 	glEnableVertexAttribArray(0);
 
 	//-- Texture Co-Ordinate Attribute of the Vertices --//
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(1);
+
+	//-- Normal Vectors --//
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)(5 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(2);
 
 	glBindVertexArray(0);
@@ -611,9 +614,7 @@ int main()
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture1);
-		glUniform1i(glGetUniformLocation(ourShader.Program, "ourTexture1"), 0);
+		
 
 		//-- Activating "ourShader" --//
 		ourShader.Use();
@@ -642,9 +643,32 @@ int main()
 
 		//-- Plane drawing Section --//
 
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture1);
+		glUniform1i(glGetUniformLocation(ourShader.Program, "ourTexture1"), 0);
 		//-- Projection --//
 		glm::mat4 projection;
 		projection = glm::perspective(45.0f, (GLfloat)WIDTH / (GLfloat)HEIGHT, 0.1f, 100.0f);
+		
+
+		GLint planelightColorLoc = glGetUniformLocation(ourShader.Program, "lightColor");
+		GLint planelightPosLoc = glGetUniformLocation(ourShader.Program, "lightPosArr");
+		//GLint planelightDist = glGetUniformLocation(ourShader.Program, "lightDist");
+
+		// Optimize here
+		const static int lightArrSize = CWlightPosVect.size();
+		glm::vec3 lightPosArray[5];
+
+		for (int i = 0; i < 5; i++)
+		{
+			lightPosArray[i] = CWlightPosVect[i];
+		}
+
+
+		glUniform3fv(planelightPosLoc, 5, glm::value_ptr(lightPosArray[0]));
+		//glUniform1f(planelightDist, distanceCalc(CWlightPosVect[0], playerPos));
+		glUniform3f(planelightColorLoc, 1.0f, 1.0f, 0.4f);
+
 		//-- Get the uniform locations --//
 		GLint modelLoc = glGetUniformLocation(ourShader.Program, "model");
 		GLint viewLoc = glGetUniformLocation(ourShader.Program, "view");
