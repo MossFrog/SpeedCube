@@ -74,22 +74,43 @@ sf::Clock mainClock;
 sf::Clock playerAnimationClock;
 
 sf::Clock freeFormClock;
+sf::Clock oscillationClock;
+
+sf::Clock movingLightClock;
+
+//-- Player Status Reporting --//
+sf::Clock statusClock;
+
 
 //-- Teleportation Animations --//
 sf::Clock flashAnimClock;
 float gammaIntensity = 5.0f;
 bool flashAnimEnabled = false;
 
+//-- Player Variables --//
+sf::Clock powerDrainClock;
+int playerEnergy = 1000;
+int playerSlowFactor = 5;
+
+//-- Input Handling Clock --//
+sf::Clock inputDelayClock;
+string lifeStatus = "Alive";
+string gameStatus = "Running";
 //-- The player moves in 3.1 unit incremental steps on the X-Z plane --//
 //-- Thus any collisible and collectible objects must be within the player's path --//
 
 int main()
 {
-	//-- Initial Definitions Section --//
+	//-- Initial Definitions and Clock restarts Section --//
 	mainClock.restart();
 	playerAnimationClock.restart();
 	freeFormClock.restart();
 	flashAnimClock.restart();
+	oscillationClock.restart();
+	powerDrainClock.restart();
+	inputDelayClock.restart();
+	movingLightClock.restart();
+	statusClock.restart();
 
 	//--------------------------------//
 
@@ -332,16 +353,40 @@ int main()
 	//-- Positions of Moving Lights --//
 	vector<glm::vec3> CWlightPosVect =
 	{
-		glm::vec3(42.0f, 1.0f, 1.0f),
+		glm::vec3(42.0f, 1.0f, 16.0f),
 		glm::vec3(-33.5f, 1.0f, 22.0f),
 		glm::vec3(-6.8f, 1.0f, -18.0f),
-		glm::vec3(13.0f, 1.0f, 17.0f),
-		glm::vec3(0.5f, 1.0f, 0.0f),
-		glm::vec3(-33.5f, 1.0f, 22.0f),
+		glm::vec3(6.8f, 1.0f, 18.0f),
+		glm::vec3(13.0f, 1.0f, -17.0f),
+		glm::vec3(-33.5f, 1.0f, -22.0f),
+
+		//-- Moving Light Positions are irrelevant --//
 		glm::vec3(-45.8f, 1.0f, -35.0f),
 		glm::vec3(44.0f, 1.0f, 17.0f),
 		glm::vec3(-16.5f, 1.0f, -18.0f),
 		glm::vec3(-42.5f, 1.0f, 22.0f)
+	};
+
+	vector<glm::vec3> scorePosVect =
+	{
+		glm::vec3(15.0f, 0.3f, 15.0f),
+		glm::vec3(-15.5f, 0.3f, -15.0f),
+		glm::vec3(-46.8f, 0.3f, -18.0f),
+		glm::vec3(44.0f, 0.3f, -17.0f),
+		glm::vec3(-44.0f, 0.3f, -42.0f),
+		glm::vec3(-44.0f, 0.3f, 46.0f),
+		glm::vec3(6.5f, 0.3f, -6.0f)
+	};
+
+	vector<glm::vec3> ReferenceScorePosVect =
+	{
+		glm::vec3(15.0f, 0.3f, 15.0f),
+		glm::vec3(-15.5f, 0.3f, -15.0f),
+		glm::vec3(-46.8f, 0.3f, -18.0f),
+		glm::vec3(44.0f, 0.3f, -17.0f),
+		glm::vec3(-44.0f, 0.3f, -42.0f),
+		glm::vec3(-44.0f, 0.3f, 46.0f),
+		glm::vec3(6.5f, 0.3f, -6.0f)
 	};
 
 	//-- Dump contents to a statically alocatted array for shader passing --//
@@ -464,6 +509,27 @@ int main()
 	glEnableVertexAttribArray(2);
 
 	glBindVertexArray(0);
+
+	//-- Score Cubes VAO and VBO --//
+	GLuint ScoreCubeVBO, ScoreCubeVAO;
+	glGenVertexArrays(1, &ScoreCubeVAO);
+	glGenBuffers(1, &ScoreCubeVBO);
+
+	glBindVertexArray(ScoreCubeVAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, ScoreCubeVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(LightCubeVertices), LightCubeVertices, GL_STATIC_DRAW);
+
+	//-- Position Attribute of the Vertices --//
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(0);
+
+	//-- Texture Co-Ordinate Attribute of the Vertices --//
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(2);
+
+	glBindVertexArray(0);
+
 	
 
 	// ====================
@@ -568,6 +634,27 @@ int main()
 	SOIL_free_image_data(image5);
 	glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture when done, so we won't accidentily mess up our texture.
 
+
+	// ====================
+	// Texture 6 (PointTexture)
+	// ====================
+	GLuint texture6;
+	glGenTextures(1, &texture6);
+	glBindTexture(GL_TEXTURE_2D, texture6); // All upcoming GL_TEXTURE_2D operations now have effect on our texture object
+	// Set our texture parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);	// Set texture wrapping to GL_REPEAT
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+	// Set texture filtering
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// Load, create texture and generate mipmaps
+	int width6, height6;
+	unsigned char* image6 = SOIL_load_image("./Point.png", &width6, &height6, 0, SOIL_LOAD_RGB);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width6, height6, 0, GL_RGB, GL_UNSIGNED_BYTE, image6);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	SOIL_free_image_data(image6);
+	glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture when done, so we won't accidentily mess up our texture.
+
 	//-- Audio Buffers --//
 	//-- Audio Files Created using BFXR --//
 	sf::SoundBuffer moveSoundBuffer;
@@ -591,6 +678,41 @@ int main()
 	sf::Sound teleportSound;
 	teleportSound.setBuffer(teleportSoundBuffer);
 
+	//-- Oscillation Effects --//
+	sf::SoundBuffer oscillateSoundBuffer;
+	if (!oscillateSoundBuffer.loadFromFile("Oscillate.ogg"))
+	{
+		cout << "Failed to load 'Oscillate.ogg'" << endl;
+	}
+	
+
+	sf::Sound oscillateSound;
+	oscillateSound.setBuffer(oscillateSoundBuffer);
+	oscillateSound.setVolume(75);
+
+
+	//-- Collecting Points Effects --//
+	sf::SoundBuffer CollectSoundBuffer;
+	if (!CollectSoundBuffer.loadFromFile("Collect.ogg"))
+	{
+		cout << "Failed to load 'Collect.ogg'" << endl;
+	}
+
+	sf::Sound CollectSound;
+	CollectSound.setBuffer(CollectSoundBuffer);
+
+
+	//-- Death Sound Effects --//
+	sf::SoundBuffer DeathSoundBuffer;
+	if (!DeathSoundBuffer.loadFromFile("Death.ogg"))
+	{
+		cout << "Failed to load 'Death.ogg'" << endl;
+	}
+
+	sf::Sound DeathSound;
+	DeathSound.setBuffer(DeathSoundBuffer);
+
+
 	//-- Loading the theme song to a buffer --//
 	sf::Music mainTheme;
 	if(!mainTheme.openFromFile("MainTheme.ogg"))
@@ -598,7 +720,7 @@ int main()
 		cout << "Failed to load 'MainTheme.ogg'" << endl;
 	}
 
-	mainTheme.setVolume(85);
+	mainTheme.setVolume(50);
 	mainTheme.setLoop(true);
 	mainTheme.play();
 
@@ -685,7 +807,7 @@ int main()
 		model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 
 		glBindVertexArray(0);
 
@@ -730,6 +852,26 @@ int main()
 			}
 		}
 
+		//-- Oscillating Sound Effects and Player Charging --//
+		if (minDist <= 3.0f)
+		{
+			if (oscillationClock.getElapsedTime().asMilliseconds() > 1000)
+			{
+				oscillateSound.play();
+				oscillationClock.restart();
+			}
+
+			if (powerDrainClock.getElapsedTime().asMilliseconds() > 10)
+			{
+				if (playerEnergy < 997)
+				{
+					playerEnergy += 3;
+				}
+
+				powerDrainClock.restart();
+			}
+		}
+
 
 		glUniform3f(lightPosLoc, CWlightPosVect[vectorLightLoc].x, CWlightPosVect[vectorLightLoc].y, CWlightPosVect[vectorLightLoc].z);
 		glUniform1f(lightDist, distanceCalc(CWlightPosVect[vectorLightLoc], playerPos));
@@ -757,7 +899,7 @@ int main()
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
 		//-- The movement animation routine along with camera movements --//
-		if (!animEnabled && playerAnimationClock.getElapsedTime().asMilliseconds() > 5)
+		if (!animEnabled && playerAnimationClock.getElapsedTime().asMilliseconds() > playerSlowFactor  && lifeStatus != "Dead")
 		{
 			if (animDirection == 0)
 			{
@@ -852,22 +994,99 @@ int main()
 			}
 		}
 
-		//-- DEBUGGING SECTION --//
-		//-- Testing Collision Basics --//
-		/*
-		for (int i = 0; i < treePosVect.size(); i++)
+		if (powerDrainClock.getElapsedTime().asMilliseconds() > 10)
 		{
-			if (distanceCalc(treePosVect[i], playerPos) <= 0.5)
+			if (playerEnergy > 0)
+			{ 
+				playerEnergy -= 1;
+			}
+			
+			powerDrainClock.restart();
+		}
+
+		//-- Losing movement power --//
+
+		if (playerEnergy <= 0 && lifeStatus != "Dead")
+		{
+			//-- Kill the player if energy is drained --//
+			DeathSound.play();
+			lifeStatus = "Dead";
+		}
+
+		else if (playerEnergy <= 350)
+		{
+			playerSlowFactor = 10;
+		}
+
+		else
+		{
+			playerSlowFactor = 5;
+		}
+
+		//-- Moving lights (indeces 6,7,8 and 9)--//
+
+		if (movingLightClock.getElapsedTime().asMilliseconds() >= 5)
+		{
+			CWlightPosVect[6].z = 43 * -abs(sin(glfwGetTime() / 5)) - 2;
+			lightPosArray[6].z = 43 * -abs(sin(glfwGetTime() / 5)) - 2;
+			CWlightPosVect[6].x = 0;
+			lightPosArray[6].x = 0;
+
+			CWlightPosVect[7].x = 43 * -abs(sin(glfwGetTime() / 5)) - 2;
+			lightPosArray[7].x = 43 * -abs(sin(glfwGetTime() / 5)) - 2;
+			CWlightPosVect[7].z = 0;
+			lightPosArray[7].z = 0;
+
+			CWlightPosVect[8].x = 43 * abs(sin(glfwGetTime()/5)) + 2;
+			lightPosArray[8].x = 43 * abs(sin(glfwGetTime()/5)) + 2;
+			CWlightPosVect[8].z = 0;
+			lightPosArray[8].z = 0;
+
+
+			CWlightPosVect[9].z = 43 * abs(sin(glfwGetTime() / 5)) + 2;
+			lightPosArray[9].z = 43 * abs(sin(glfwGetTime() / 5)) + 2;
+			CWlightPosVect[9].x = 0;
+			lightPosArray[9].x = 0;
+
+			movingLightClock.restart();
+		}
+		
+		//-- Score Collection Method --//
+		for (int i = 0; i < scorePosVect.size(); i++)
+		{
+			glm::vec3 alteredPos = glm::vec3(scorePosVect[i].x + sin(glfwGetTime()) * 2.0f, scorePosVect[i].y, scorePosVect[i].z + cos(glfwGetTime()) * 2.0f);
+			if (distanceCalc(alteredPos, playerPos) <= 1.0f)
 			{
-				treePosVect.erase(treePosVect.begin() + i);
+				scorePosVect.erase(scorePosVect.begin() + i);
+				CollectSound.play();
 			}
 		}
-		*/
 
-		//cout << playerPos.x << " " << playerPos.z << endl;
-		//cout << cameraPos.x << " " << cameraPos.z << endl;
-		//cout << endl;
-		//-- DEBUGGING SECTION --//
+		if (statusClock.getElapsedTime().asMilliseconds() > 100 && !freeformEnabled)
+		{
+			system("cls");
+			cout << "-	Remaining Energy: " << playerEnergy << endl;
+			cout << "-	Remaining Tokens To Discover: " << scorePosVect.size() << endl;
+			cout << "-	Status: " << lifeStatus << endl;
+			statusClock.restart();
+
+			if (lifeStatus == "Dead")
+			{
+				cout << "-- Press V to restart the game. --" << endl;
+			}
+		}
+
+		//-- Game Restarting Section --//
+		if (gameStatus == "Restarting")
+		{
+			scorePosVect = ReferenceScorePosVect;
+			cameraPos.x = 0.0f;
+			cameraPos.z = 0.0f;
+
+			gameStatus = "Running";
+			playerEnergy = 1000;
+			lifeStatus = "Alive";
+		}
 
 		glBindVertexArray(0);
 
@@ -877,7 +1096,7 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, texture2);
 		glUniform1i(glGetUniformLocation(shaderTree.Program, "ourTexture1"), 0);
 
-		//-- Activating "ourShader" --//
+		//-- Activating "shaderTree" --//
 		shaderTree.Use();
 
 		//-- Tree Projection --//
@@ -921,7 +1140,7 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, texture4);
 		glUniform1i(glGetUniformLocation(shaderShadow.Program, "ourTexture1"), 0);
 
-		//-- Activating "ourShader" --//
+		//-- Activating "shaderShadow" --//
 		shaderShadow.Use();
 
 		//-- Tree Projection --//
@@ -949,7 +1168,28 @@ int main()
 			//-- Simple View Frustrum Culling --//
 			if (distanceCalc(playerPos, treePosVect[i]) <= 20.0f)
 			{
-				glDrawArrays(GL_TRIANGLES, 0, 36);
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+			}
+		}
+
+
+		for (int i = 0; i < scorePosVect.size(); i++)
+		{
+			//-- Calculation of each individual model matrix --//
+			glm::mat4 ShadowModel;
+			GLfloat radius = 2.0f;
+			GLfloat scoreX = sin(glfwGetTime()) * radius;
+			GLfloat scoreZ = cos(glfwGetTime()) * radius;
+			
+			ShadowModel = glm::translate(ShadowModel, glm::vec3(scorePosVect[i].x + scoreX, 0.001f, scorePosVect[i].z + scoreZ));
+			ShadowModel = glm::scale(ShadowModel, glm::vec3(0.6f, 1.0f, 0.6f));
+			//-- The angle changes over time, acceleration is caused by the sinusoidal change over time altering rotation. --//
+			glUniformMatrix4fv(ShadowModelLoc, 1, GL_FALSE, glm::value_ptr(ShadowModel));
+
+			//-- Simple View Frustrum Culling --//
+			if (distanceCalc(playerPos, scorePosVect[i]) <= 20.0f)
+			{
+				glDrawArrays(GL_TRIANGLES, 0, 6);
 			}
 		}
 
@@ -962,7 +1202,7 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, texture5);
 		glUniform1i(glGetUniformLocation(shaderLight.Program, "ourTexture1"), 0);
 
-		//-- Activating "ourShader" --//
+		//-- Activating "shaderLight" --//
 		shaderLight.Use();
 
 		//-- Light Projection --//
@@ -978,8 +1218,6 @@ int main()
 
 		glBindVertexArray(LightCubeVAO);
 
-		objectYpos = sin(glfwGetTime());
-
 		for (int i = 0; i < CWlightPosVect.size(); i++)
 		{
 			//-- Calculation of each individual model matrix --//
@@ -988,7 +1226,7 @@ int main()
 			GLfloat lightX = sin(glfwGetTime()) * radius;
 			GLfloat lightZ = cos(glfwGetTime()) * radius;
 			Lightmodel = glm::translate(Lightmodel, CWlightPosVect[i] + glm::vec3(lightX, 1.0f, lightZ));
-			Lightmodel = glm::rotate(Lightmodel, 1.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+			Lightmodel = glm::rotate(Lightmodel, 1.0f, glm::vec3(1.0f, 1.0f, 1.0f));
 			//-- The angle changes over time, acceleration is caused by the sinusoidal change over time altering position. --//
 			glUniformMatrix4fv(LightmodelLoc, 1, GL_FALSE, glm::value_ptr(Lightmodel));
 
@@ -1002,6 +1240,51 @@ int main()
 
 		glBindVertexArray(0);
 
+
+		//-- Score rendering section --//
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture6);
+		glUniform1i(glGetUniformLocation(shaderLight.Program, "ourTexture1"), 0);
+
+		//-- Activating "shaderLight" --//
+		shaderLight.Use();
+
+		//-- Light Projection --//
+		glm::mat4 ScoreProjection;
+		ScoreProjection = glm::perspective(45.0f, (GLfloat)WIDTH / (GLfloat)HEIGHT, 0.1f, 100.0f);
+		//-- Get the uniform locations --//
+		GLint ScoremodelLoc = glGetUniformLocation(shaderLight.Program, "model");
+		GLint ScoreviewLoc = glGetUniformLocation(shaderLight.Program, "view");
+		GLint ScoreprojLoc = glGetUniformLocation(shaderLight.Program, "projection");
+		//-- Pass the matrices to the shader --//
+		glUniformMatrix4fv(ScoreviewLoc, 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(ScoreprojLoc, 1, GL_FALSE, glm::value_ptr(ScoreProjection));
+
+		glBindVertexArray(ScoreCubeVAO);
+
+		for (int i = 0; i < scorePosVect.size(); i++)
+		{
+			//-- Calculation of each individual model matrix --//
+			glm::mat4 scoreModel;
+			GLfloat radius = 2.0f;
+			GLfloat scoreX = sin(glfwGetTime()) * radius;
+			GLfloat scoreZ = cos(glfwGetTime()) * radius;
+			scoreModel = glm::translate(scoreModel, scorePosVect[i] + glm::vec3(scoreX, 0.0f, scoreZ));
+			scoreModel = glm::rotate(scoreModel, 1.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+			//-- The angle changes over time, acceleration is caused by the sinusoidal change over time altering position. --//
+			glUniformMatrix4fv(LightmodelLoc, 1, GL_FALSE, glm::value_ptr(scoreModel));
+
+			//-- Simple View Frustrum Culling --//
+			if (distanceCalc(playerPos, scorePosVect[i]) <= 20.0f)
+			{
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
+		}
+
+
+		glBindVertexArray(0);
+		
 		//-- Swap the screen buffers --//
 		glfwSwapBuffers(mainWindow);
 	}
@@ -1026,7 +1309,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode
 
 	if (key == GLFW_KEY_W)
 	{
-		if (animEnabled && !freeformEnabled)
+		if (animEnabled && !freeformEnabled && lifeStatus != "Dead")
 		{
 			animEnabled = false;
 			animDirection = 0;
@@ -1040,7 +1323,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode
 		
 	if (key == GLFW_KEY_S)
 	{
-		if (animEnabled && !freeformEnabled)
+		if (animEnabled && !freeformEnabled && lifeStatus != "Dead")
 		{
 			animEnabled = false;
 			animDirection = 1;
@@ -1054,7 +1337,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode
 		
 	if (key == GLFW_KEY_A)
 	{ 
-		if (animEnabled && !freeformEnabled)
+		if (animEnabled && !freeformEnabled && lifeStatus != "Dead")
 		{
 			animEnabled = false;
 			animDirection = 3;
@@ -1068,7 +1351,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode
 		
 	if (key == GLFW_KEY_D)
 	{ 
-		if (animEnabled && !freeformEnabled)
+		if (animEnabled && !freeformEnabled && lifeStatus != "Dead")
 		{
 			animEnabled = false;
 			animDirection = 2;
@@ -1079,21 +1362,13 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode
 			freecameraPos += glm::normalize(glm::cross(freecameraFront, freecameraUp)) * freecameraSpeed;
 		}
 	}
-		
-	//-- Camera Rotation Buttons  Q-E --//
-	if (key == GLFW_KEY_Q)
+
+	if (key == GLFW_KEY_V)
 	{
-		
-	}
-
-	if (key == GLFW_KEY_E)
-	{
-
-	}
-
-	if (key == GLFW_KEY_R)
-	{
-
+		if (lifeStatus == "Dead")
+		{
+			gameStatus = "Restarting";
+		}
 	}
 
 	if (key == GLFW_KEY_P)
